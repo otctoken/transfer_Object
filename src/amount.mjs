@@ -1,11 +1,11 @@
 export function parseAmount(value, decimals) {
-  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 255) throw new Error('代币精度无效');
-  if (!/^(0|[1-9]\d*)(\.\d+)?$/.test(value)) throw new Error('请输入有效的正数，不支持科学计数法');
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 255) throw new Error('Invalid token decimals');
+  if (!/^(0|[1-9]\d*)(\.\d+)?$/.test(value)) throw new Error('Enter a positive decimal amount without scientific notation');
   const [whole, fraction = ''] = value.split('.');
-  if (fraction.length > decimals) throw new Error(`最多支持 ${decimals} 位小数`);
+  if (fraction.length > decimals) throw new Error(`Use no more than ${decimals} decimal places`);
   const units = BigInt(whole) * 10n ** BigInt(decimals) + BigInt(fraction.padEnd(decimals, '0') || '0');
-  if (units <= 0n) throw new Error('数量必须大于 0');
-  if (units > 18446744073709551615n) throw new Error('数量超过单笔 u64 上限');
+  if (units <= 0n) throw new Error('Amount must be greater than zero');
+  if (units > 18446744073709551615n) throw new Error('Amount exceeds the u64 limit');
   return units;
 }
 export function formatAmount(value, decimals) {
