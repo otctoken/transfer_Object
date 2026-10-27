@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Transaction } from '@mysten/sui/transactions';
 import { toBase64 } from '@mysten/sui/utils';
-import { parseBase64Transaction, assertUnchangedBytes, submitBase64Transaction } from '../src/base64-transaction.mjs';
+import { normalizeBase64Input, parseBase64Transaction, assertUnchangedBytes, submitBase64Transaction } from '../src/base64-transaction.mjs';
 const sender = '0x' + '1'.repeat(64);
 const recipient = '0x' + '2'.repeat(64);
 async function fixture(owner = sender) {
@@ -20,6 +20,49 @@ test('parses full bytes, tolerates whitespace and preserves the transaction exac
   assert.equal(toBase64(await parsed.tx.build()),base64);
   assert.equal(parsed.data.commands.length,2);
   assertUnchangedBytes(base64,base64);
+});
+
+test('normalizes clipboard wrappers, invisible characters and omitted padding without changing bytes', async () => {
+  const base64 = await fixture();
+  for (const input of [
+    `"${base64}"`, `'${base64}'`, '`' + base64 + '`',
+    '```base64\n' + base64 + '\n```',
+    '\uFEFF' + base64.slice(0, 40) + '\u200B\u2060' + base64.slice(40),
+    base64.replace(/=+$/, ''),
+  ]) {
+    assert.equal(parseBase64Transaction(input, sender).base64, base64);
+  }
+  assert.equal(normalizeBase64Input('YQ'), 'YQ==');
+  assert.equal(normalizeBase64Input('YWI'), 'YWI=');
+});
+
+test('reports empty, oversized, invalid-character and truncated input distinctly', () => {
+  assert.throws(() => normalizeBase64Input(' '), /complete Base64/);
+  assert.throws(() => normalizeBase64Input('A'.repeat(180004)), /too large/);
+  assert.throws(() => normalizeBase64Input('AAAA…'), /U\+2026.*position 5/);
+  for (const input of ['AAAAA', 'AA=', 'A===', '=AAA', 'AA==AAAA']) {
+    assert.throws(() => normalizeBase64Input(input), /truncated or has invalid padding/);
+  }
+  assert.throws(() => normalizeBase64Input('AB=='), /padding bits/);
+  assert.throws(() => parseBase64Transaction('AAAA', sender), /Base64 decoded.*TransactionData/);
+});
+
+test('preserves a large publish transaction with address-balance gas and ValidDuring expiration', async () => {
+  const tx = new Transaction();
+  tx.setSender(sender); tx.setGasOwner(sender); tx.setGasBudget(157942400); tx.setGasPrice(1000);
+  tx.setGasPayment([]);
+  tx.setExpiration({ ValidDuring: { minEpoch: '7', maxEpoch: '8', minTimestamp: null, maxTimestamp: null, chain: '11111111111111111111111111111111', nonce: 42 } });
+  // Synthetic module bytes exercise serialization only; this test does not publish a package.
+  const modules = [1, 2, 3].map(value => Array(5500).fill(value));
+  const upgradeCap = tx.publish({ modules, dependencies: ['0x1', '0x2'] });
+  tx.transferObjects([upgradeCap], sender);
+  const base64 = toBase64(await tx.build());
+  assert.ok(base64.length > 22000);
+  const parsed = parseBase64Transaction('```text\n' + base64 + '\n```', sender);
+  assert.equal(parsed.data.commands[0].Publish.modules.length, 3);
+  assert.deepEqual(parsed.data.gasData.payment, []);
+  assert.deepEqual(parsed.data.expiration, tx.getData().expiration);
+  assert.equal(toBase64(await parsed.tx.build()), base64);
 });
 test('rejects invalid input, JSON, transaction-kind-only and trailing data', async () => {
   for (const value of ['', '!!!!', '{}', 'AAAA', 'A'.repeat(180004)]) assert.throws(() => parseBase64Transaction(value,sender));
