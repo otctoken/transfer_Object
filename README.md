@@ -34,9 +34,9 @@ Public gRPC endpoints can rate-limit requests. Configure alternate endpoints in 
 
 Type checking, production build and amount precision tests have passed. Wallet selection and transfer mode switching were checked in the browser. Real wallet signing and on-chain transfers require a funded wallet and have not been performed on the user's behalf.
 
-## Submit a Base64 transaction to Mainnet
+## Submit a Base64 transaction on the selected network
 
-Select **Base64**, connect the transaction sender's wallet, and select **Sui Mainnet**. Paste the complete Base64 string produced by:
+Select **Base64**, connect the transaction sender's wallet, and choose **Sui Mainnet**, **Sui Testnet** or **Sui Devnet**. Paste the complete Base64 string produced using a client for that same network:
 
 ```ts
 const bytes = await tx.build({ client });
@@ -44,6 +44,6 @@ const base64 = toBase64(bytes);
 console.log(base64);
 ```
 
-Use full TransactionData bytes, not `onlyTransactionKind`, JSON or a signature. The sender must match the connected wallet; sponsored transactions needing another signature are not supported. The app preserves all embedded commands and gas settings, simulates against Mainnet, displays the decoded transaction and simulated effects, and asks for explicit review before wallet signing. Returned wallet bytes must exactly match the reviewed bytes before the app submits them through the Mainnet client. Expired transactions or stale object references must be rebuilt by their source.
+Use full TransactionData bytes, not `onlyTransactionKind`, JSON or a signature. The sender must match the connected wallet; sponsored transactions needing another signature are not supported. The app preserves all embedded commands and gas settings, simulates against the selected network, displays the decoded transaction and simulated effects, and asks for explicit review before wallet signing on that network. Returned wallet bytes must exactly match the reviewed bytes before the app submits them through the selected network's client. Changing the wallet or network requires a new review; a change during signing prevents submission. Expired transactions or stale object references must be rebuilt by their source.
 
-Base64 is an encoding, not a safety guarantee. These transactions may include arbitrary contract calls and transfers. A successful simulation does not guarantee the transaction is safe. Transaction bytes do not identify their intended network; this feature always targets Mainnet and must be used with Mainnet transactions. No real signature or on-chain transaction was executed during development.
+Base64 is an encoding, not a safety guarantee. These transactions may include arbitrary contract calls and transfers. A successful simulation does not guarantee the transaction is safe. Transaction bytes do not identify their intended network; choose the network the transaction was built for. Switching networks does not convert object references or gas payments to another chain. No real signature or on-chain transaction was executed during development.
